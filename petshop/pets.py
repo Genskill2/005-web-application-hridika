@@ -1,5 +1,4 @@
 import datetime
-
 from flask import Blueprint
 from flask import render_template, request, redirect, url_for, jsonify
 from flask import g
@@ -9,7 +8,12 @@ from . import db
 bp = Blueprint("pets", "pets", url_prefix="")
 
 def format_date(d):
-    if d:
+    if d==1:
+       k=str(datetime.date.today())
+       k=datetime.datetime.strptime(k, '%Y-%m-%d')
+       v = k.strftime("%a - %b %d, %Y")
+       return v
+    elif d:
         d = datetime.datetime.strptime(d, '%Y-%m-%d')
         v = d.strftime("%a - %b %d, %Y")
         return v
@@ -18,19 +22,44 @@ def format_date(d):
 
 @bp.route("/search/<field>/<value>")
 def search(field, value):
-    # TBD
-    return ""
-
+    conn = db.get_db()
+    cursor = conn.cursor()
+    cursor.execute("select p.id, p.name,p.bought,p.sold,s.name from pet p ,tags_pets tp, tag t,animal s where  t.name=? and tp.tag=t.id and tp.pet=p.id and p.species =s.id ", [value])
+    pets = cursor.fetchall()
+    return render_template('search.html',pets=pets)
+   
+  
+        
 @bp.route("/")
 def dashboard():
     conn = db.get_db()
     cursor = conn.cursor()
-    oby = request.args.get("order_by", "id") # TODO. This is currently not used. 
-    order = request.args.get("order", "asc")
+    oby = request.args.get("order_by","id") # TODO. This is currently not used. 
+    order = request.args.get("order","asc")
     if order == "asc":
-        cursor.execute(f"select p.id, p.name, p.bought, p.sold, s.name from pet p, animal s where p.species = s.id order by p.id")
+      if oby=="sold":
+        cursor.execute(f"select p.id, p.name, p.bought, p.sold, s.name from pet p, animal s where p.species = s.id order by p.sold")
+      elif oby=="species":
+         cursor.execute(f"select p.id, p.name, p.bought, p.sold, s.name from pet p, animal s where p.species = s.id order by p.species") 
+      elif oby=="name":
+         cursor.execute(f"select p.id, p.name, p.bought, p.sold, s.name from pet p, animal s where p.species = s.id order by p.name")
+      elif oby=="bought":
+         cursor.execute(f"select p.id, p.name, p.bought, p.sold, s.name from pet p, animal s where p.species = s.id order by p.bought")  
+      else:
+         cursor.execute(f"select p.id, p.name, p.bought, p.sold, s.name from pet p, animal s where p.species = s.id order by p.id")
+           
     else:
-        cursor.execute(f"select p.id, p.name, p.bought, p.sold, s.name from pet p, animal s where p.species = s.id order by p.id desc")
+        if oby=="sold":
+         cursor.execute(f"select p.id, p.name, p.bought, p.sold, s.name from pet p, animal s where p.species = s.id order by p.sold desc")
+        elif oby=="species":
+         cursor.execute(f"select p.id, p.name, p.bought, p.sold, s.name from pet p, animal s where p.species = s.id order by p.species desc") 
+        elif oby=="name":
+         cursor.execute(f"select p.id, p.name, p.bought, p.sold, s.name from pet p, animal s where p.species = s.id order by p.name desc")
+        elif oby=="bought":
+         cursor.execute(f"select p.id, p.name, p.bought, p.sold, s.name from pet p, animal s where p.species = s.id order by p.bought desc")
+        else:
+         cursor.execute(f"select p.id, p.name, p.bought, p.sold, s.name from pet p, animal s where p.species = s.id order by p.id desc")
+        
     pets = cursor.fetchall()
     return render_template('index.html', pets = pets, order="desc" if order=="asc" else "asc")
 
@@ -73,8 +102,11 @@ def edit(pid):
         return render_template("editpet.html", **data)
     elif request.method == "POST":
         description = request.form.get('description')
-        sold = request.form.get("sold")
-        # TODO Handle sold
+        sold =request.form.get('sold')
+        if sold=='None':
+          sold=''
+        cursor.execute("update pet set description= ?,sold=? where id=?",[description,sold,pid])
+        conn.commit()
         return redirect(url_for("pets.pet_info", pid=pid), 302)
         
     
